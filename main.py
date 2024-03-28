@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error as mae
 
 
-def solve_least_squares(Q, R, b):
-    c = np.dot(Q.T, b)
-    x = np.zeros((R.shape[1], 1))
-    for i in reversed(range(R.shape[1])):
-        x[i] = (c[i] - np.dot(R[i, i+1:], x[i+1:])) / R[i, i]
+def solve_least_squares(H, R, b):
+    c = np.dot(H.T, b)
+    # x = np.zeros((R.shape[1], 1))
+    # for i in reversed(range(R.shape[1])):
+    #     x[i] = (c[i] - np.dot(R[i, i+1:], x[i+1:])) / R[i, i]
+    x = np.linalg.inv(R).dot(c)
     return x
 
 
@@ -28,14 +29,13 @@ def householder_reflector(v):
     return H
 
 
-def algorithm1(A):
-    m, n = A.shape
-    Q = np.eye(m)
-    R = A.copy()
+def algorithm1(R):
+    m, n = R.shape
+    H = np.identity(m)
     
     for i in range(min(m, n)):
         x = R[i:, i]
-        norm_x = np.linalg.norm(x)
+        norm_x = norm(x)
         e1 = np.zeros_like(x)
         e1[0] = 1
         v = x + np.copysign(norm_x, x[0]) * e1
@@ -46,13 +46,21 @@ def algorithm1(A):
             H_sub = -H_sub
             H_i[i:, i:] = H_sub
         R = np.dot(H_i, R)
-        Q = np.dot(Q, H_i.T)
+        H = np.dot(H, H_i.T)
     
-    return Q[:, :n], R[:n, :]
+    return H[:, :n], R[:n, :]
 
 
 def algorithm2():
     return None
+
+
+def matrix(rows, cols):
+    if rows < cols:
+        raise ValueError("n<k")
+    random_matrix = np.random.rand(rows, cols)
+    H, _ = algorithm1(random_matrix)
+    return H[:, :cols]
 
 
 sizes = range(2,51)
@@ -61,14 +69,15 @@ errors = []
 
 for i in sizes:
 
-    n, k = i, i
+    n, k = i+1, i
 
-    A = np.random.rand(n, k)
+
+    A = matrix(n, k)
     b = np.random.rand(n,1)
 
-    Q, R = algorithm1(A)
+    H, R = algorithm1(A)
 
-    x = solve_least_squares(Q, R, b)
+    x = solve_least_squares(H, R, b)
     true_x = np.linalg.lstsq(A, b, rcond=None)[0]
 
     average_true = np.average(true_x)
@@ -85,9 +94,3 @@ plt.plot(df['Sizes'], df['Errors'])
 plt.xlabel('Matrix Sizes')
 plt.ylabel('LS Error')
 plt.show()
-
-
-
-
-
-
