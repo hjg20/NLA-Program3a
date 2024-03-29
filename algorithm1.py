@@ -14,7 +14,6 @@ def algorithm1(A, b):
     m, n = A.shape
     Q = np.eye(m)
     R = A.copy()
-    
     for i in range(min(m, n)):
         x = R[i:, i]
         norm_x = np.linalg.norm(x)
@@ -29,7 +28,6 @@ def algorithm1(A, b):
             H_i[i:, i:] = H_sub
         R = np.dot(H_i, R)
         Q = np.dot(Q, H_i.T)
-
     c = np.dot(Q.T, b)
     x = np.zeros((R.shape[1], 1))
     for i in reversed(range(R.shape[1])):
@@ -37,40 +35,43 @@ def algorithm1(A, b):
     return x
 
 
-def generate_nonsingular_matrix(n, k):
-    # Prompting the user for the size of the square matrix
+def test1matrix(n, k):
     if n < k:
         print('n < k')
         return None
-
     while True:
-        # Generating a random matrix of size n x n
+        np.random.seed(1)
         matrix = np.random.rand(n, k)
-
-        # Checking if the determinant is non-zero (the matrix is nonsingular)
         if np.linalg.det(matrix) != 0:
-            break  # If the matrix is nonsingular, break the loop
-
+            matrix -= np.average(matrix)
+            matrix /= np.sum(matrix)
+            break
     return matrix
 
-sizes = range(2, 200, 5)
-errors = []
-np.random.seed(1)
 
-for i in sizes:
-    n = i
-    k = i
+def test2matrix(n, k):
+    if n <= k:
+        raise ValueError("n must be greater than k for a full column rank matrix.")
+    Q, _ = np.linalg.qr(np.random.randn(n, k))
+    b = Q @ np.random.randn(k)
+    return Q, b
 
-    A = generate_nonsingular_matrix(n, k)
-        
-    #A = np.random.rand(10, 8)##
-    b = np.random.rand(n, 1)##
 
-    x1 = algorithm1(A, b)
-
-    true_x = np.linalg.lstsq(A, b, rcond=None)[0]
-
-    errors.append(np.abs(np.sum(x1 - true_x)))
-
-plt.plot(sizes, errors)
-plt.show()
+def test3matrix(n, k):
+    if n <= k:
+        raise ValueError("n must be greater than k for a full column rank matrix.")
+    A = np.random.randn(n, k)
+    Q, R = np.linalg.qr(A)
+    while not np.all(np.diag(R)[:k]):
+        A = np.random.randn(n, k)
+        Q, R = np.linalg.qr(A)
+    b1 = A @ np.random.randn(k)
+    random_vector = np.random.randn(n)
+    projection = Q @ Q.T @ random_vector
+    b2 = random_vector - projection
+    while np.linalg.norm(b2) < 1e-10:
+        random_vector = np.random.randn(n)
+        projection = Q @ Q.T @ random_vector
+        b2 = random_vector - projection
+    b = b1 + b2
+    return A, b
