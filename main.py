@@ -4,14 +4,6 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error as mae
 
 
-def solve_least_squares(Q, R, b):
-    c = np.dot(Q.T, b)
-    x = np.zeros((R.shape[1], 1))
-    for i in reversed(range(R.shape[1])):
-        x[i] = (c[i] - np.dot(R[i, i+1:], x[i+1:])) / R[i, i]
-    return x
-
-
 def norm(x):
     norm = 0
     for i in x:
@@ -20,74 +12,93 @@ def norm(x):
     return norm
 
 
-def householder_reflector(v):
-    v = np.asarray(v).reshape(-1, 1)
-    I = np.eye(v.shape[0])
-    vTv = np.dot(v.T, v)
-    H = I - 2 * np.dot(v, v.T) / vTv
+def householder_reflection(v):
+    u = v / (v[0] + np.copysign(np.linalg.norm(v), v[0]))
+    u[0] = 1
+    H = np.eye(len(v)) - (2 / np.dot(u, u)) * np.outer(u, u)
     return H
-
-
-def algorithm1(A):
-    m, n = A.shape
-    Q = np.eye(m)
-    R = A.copy()
-    
-    for i in range(min(m, n)):
-        x = R[i:, i]
-        norm_x = np.linalg.norm(x)
-        e1 = np.zeros_like(x)
-        e1[0] = 1
-        v = x + np.copysign(norm_x, x[0]) * e1
-        H_sub = householder_reflector(v)
-        H_i = np.eye(m)
-        H_i[i:, i:] = H_sub
-        if np.dot(H_sub[0, :], x) < 0:
-            H_sub = -H_sub
-            H_i[i:, i:] = H_sub
-        R = np.dot(H_i, R)
-        Q = np.dot(Q, H_i.T)
-    
-    return Q[:, :n], R[:n, :]
 
 
 def algorithm2():
     return None
 
 
-sizes = range(2,51)
-
-errors = []
-
-for i in sizes:
-
-    n, k = i, i
-
-    A = np.random.rand(n, k)
-    b = np.random.rand(n,1)
-
-    Q, R = algorithm1(A)
-
-    x = solve_least_squares(Q, R, b)
-    true_x = np.linalg.lstsq(A, b, rcond=None)[0]
-
-    average_true = np.average(true_x)
-    average_pred = np.average(x)
-    errors.append(np.abs(average_true-average_pred))
+def apply_householder(H, A):
+    return np.dot(H, A)
 
 
-df = pd.DataFrame()
-df['Sizes'] = sizes
-df['Errors'] = errors
+# Function to perform QR decomposition using Householder reflections
+def qr_decomposition(A):
+    m, n = A.shape
+    R = A.copy()
+    Q = np.eye(m)
+    
+    for i in range(min(m, n)):
+        H = np.eye(m)
+        H[i:, i:] = householder_reflection(R[i:, i])
+        R = apply_householder(H, R)
+        Q = apply_householder(H, Q)
+    
+    return Q.T, R  # Q.T is the actual Q in QR decomposition
 
 
-plt.plot(df['Sizes'], df['Errors'])
-plt.xlabel('Matrix Sizes')
-plt.ylabel('LS Error')
-plt.show()
+# Function to solve Rx = b for an upper triangular matrix R
+def solve_triangular(R, b):
+    n = R.shape[1]  # Considering the number of columns as the matrix may not be square
+    x = np.zeros(n)
+    
+    for i in range(n - 1, -1, -1):
+        x[i] = b[i]
+        for j in range(i + 1, n):
+            x[i] -= R[i, j] * x[j]
+        x[i] /= R[i, i]
+    
+    return x
+
+
+def incremental_least_squares(An, bn, an1, beta_n1):
+    """
+    Incrementally updates the least squares solution given new data.
+    
+    :param An: The matrix A at step n (A_n)
+    :param bn: The vector b at step n (b_n)
+    :param an1: The new row to be added to A (a_{n+1})
+    :param beta_n1: The new element to be added to b (beta_{n+1})
+    :return: The updated solution x_min at step n+1
+    """
+    # Step 1: Update An and bn to An+1 and bn+1
+    An1 = np.vstack((An, an1))
+    bn1 = np.append(bn, beta_n1)
+    
+    # Step 2: Compute QR decomposition of An1
+    Qn1, Rn1 = qr_decomposition(An1)
+    
+    # Step 3: Solve the least squares problem to find x_min at step n+1
+    Qt_bn1 = np.dot(Qn1.T, bn1)[:Rn1.shape[1]]
+    x_min_n1 = solve_triangular(Rn1, Qt_bn1)
+    
+    return x_min_n1
 
 
 
 
 
+
+
+
+# Example usage with dummy data:
+A = np.random.rand(5, 3)
+b = np.random.rand(5)
+an1 = np.random.rand(1, 3)
+beta_n1 = np.random.rand(1)
+
+Q,R = qr_decomposition(A)
+Qtb = np.dot(Q.T, b)[:R.shape[1]]
+x1 = solve_triangular(R, Qtb)
+print(x1)
+print(np.linalg.lstsq(A,b))
+
+# Get the solution for x_min at step n+1
+x_min_n1 = incremental_least_squares(A, b, an1, beta_n1)
+print(x_min_n1)
 
